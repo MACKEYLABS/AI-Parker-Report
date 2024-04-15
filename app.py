@@ -8,9 +8,14 @@ from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 import streamlit as st
 
-def init_database(user: str, password: str, host: str, port: str, database: str) -> SQLDatabase:
-  db_uri = f"mysql+mysqlconnector://{user}:{password}@{host}:{port}/{database}"
-  return SQLDatabase.from_uri(db_uri)
+def init_database(connection_type, user, password, host, port, database):
+    if connection_type == "MySQL":
+        db_uri = f"mysql+mysqlconnector://{user}:{password}@{host}:{port}/{database}"
+    elif connection_type == "Microsoft SQL":
+        db_uri = f"mssql+pyodbc://{user}:{password}@{host}:{port}/{database}"
+    else:
+        raise ValueError("Unsupported database type selected")
+    return SQLDatabase.from_uri(db_uri)
 
 def get_sql_chain(db):
   template = """
@@ -90,17 +95,18 @@ if "chat_history" not in st.session_state:
     ]
 
 load_dotenv()
-
-st.set_page_config(page_title="Chat with MySQL", page_icon=":speech_balloon:")
-#st.themes.enable("dark")
-st.title("MySQL Reporter")
+st.set_page_config(page_title="Database Reporter", page_icon=":speech_balloon:")
+st.title("Database Reporter")
 
 with st.sidebar:
     st.subheader("Settings")
-    st.write("Use the input below to connect to your chosen Database.")
-    
+    st.write("Use the input below to connect to your chosen database.")
+
+    # Connection type selector
+    connection_type = st.selectbox("Select your database type", ["MySQL", "Microsoft SQL"])
+
     st.text_input("Host", value="localhost", key="Host")
-    st.text_input("Port", value="3306", key="Port")
+    st.text_input("Port", value="3306" if connection_type == "MySQL" else "1433", key="Port")
     st.text_input("User", value="User", key="User")
     st.text_input("Password", type="password", value="admin", key="Password")
     st.text_input("Database", value="City Jail DB", key="Database")
@@ -108,6 +114,7 @@ with st.sidebar:
     if st.button("Connect"):
         with st.spinner("Connecting to database..."):
             db = init_database(
+                connection_type,
                 st.session_state["User"],
                 st.session_state["Password"],
                 st.session_state["Host"],
@@ -115,7 +122,7 @@ with st.sidebar:
                 st.session_state["Database"]
             )
             st.session_state.db = db
-            st.success("Connected to database!")
+            st.success(f"Connected to {connection_type} database!")
     
 for message in st.session_state.chat_history:
     if isinstance(message, AIMessage):
